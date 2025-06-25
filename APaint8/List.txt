@@ -1,0 +1,68 @@
+     1                                  ; GetIndex.asm
+     2                                  ; res=CallWindowProc(ptrMC, LongDerived, ptStanPal, 3&, 4&)
+     3                                  ;                             8          12         16  20
+     4                                  %define LongDerived    [ebp+8]
+     5                                  %define ptStanPal      [ebp+12]
+     6                                  %define MinD           [ebp-4]
+     7                                  %define LongVal        [ebp-8]
+     8                                  %define Index          [ebp-12]
+     9                                  
+    10                                  [bits 32]
+    11 00000000 55                          push ebp
+    12 00000001 89E5                        mov ebp,esp
+    13 00000003 81EC0C000000                sub esp,12
+    14 00000009 57                          push edi
+    15 0000000A 56                          push esi
+    16 0000000B 53                          push ebx
+    17                                      
+    18 0000000C 31C0                        xor eax,eax
+    19 0000000E 8945F4                      mov Index,eax
+    20 00000011 8B4508                      mov eax,LongDerived
+    21 00000014 0F6ED8                      movd mm3,eax
+    22 00000017 B8E8030000                  mov eax,1000
+    23 0000001C 8945FC                      mov MinD,eax
+    24 0000001F 8B7D0C                      mov edi,ptStanPal
+    25 00000022 B9FF000000                  mov ecx,255
+    26                                  Fork:
+    27                                     
+    28 00000027 0F6FC3                     movq mm0,mm3     ; mm0 =RGBA LongDerived
+    29 0000002A 0F6E0F                     movd mm1,[edi]   ; mm1 =RGBA Standard
+    30 0000002D 0F6FD0                     movq mm2,mm0     ; mm2 =RGBA LongDerived
+    31 00000030 0FD8C1                     psubusb mm0,mm1 ; eq mm0-mm1  Derived-Standard
+    32 00000033 0FD8CA                     psubusb mm1,mm2 ; eq mm1-mm0  Standard-Derived
+    33 00000036 0FEBC1                     por mm0,mm1     ; ABS(mm0-mm1) mm0 =| | | |ABGR|
+    34                                  
+    35 00000039 0FEFC9                     pxor mm1,mm1
+    36 0000003C 0F60C1                     punpcklbw mm0,mm1  ; mm0 =|A|B|G|R|
+    37                                     
+    38 0000003F 0F6FC8                     movq mm1,mm0
+    39 00000042 0F6FD0                     movq mm2,mm0
+    40 00000045 0F73D110                   psrlq mm1,16       ; mm1 =| |A|B|G|
+    41 00000049 0F73D220                   psrlq mm2,32       ; mm2 =| | |A|B|
+    42 0000004D 0FEDC1                     paddsw mm0,mm1
+    43 00000050 0FEDC2                     paddsw mm0,mm2     ; mm0 =|A|B+A|G+B+A|R+G+B|
+    44 00000053 0F7EC0                     movd eax,mm0
+    45 00000056 25FFFF0000                 and eax,00000FFFFh ; eax =R+G+B =Sum[ABS(Diffs)]
+    46                                  
+    47 0000005B 3B45FC                     cmp eax,MinD    
+    48 0000005E 7F06                       jg nextk
+    49 00000060 8945FC                        mov MinD,eax
+    50 00000063 894DF4                        mov Index,ecx
+    51                                  nextk:
+    52 00000066 B804000000                 mov eax,4
+    53 0000006B 01C7                       add edi,eax
+    54 0000006D 49                         dec ecx
+    55 0000006E 75B7                       jnz Fork
+    56                                  
+    57 00000070 B8FF000000                 mov eax,255
+    58 00000075 2B45F4                     sub eax,Index
+    59                                   
+    60                                  GETOUT:
+    61 00000078 0F77                        emms
+    62 0000007A 5B                          pop ebx
+    63 0000007B 5E                          pop esi
+    64 0000007C 5F                          pop edi
+    65 0000007D 89EC                        mov esp,ebp
+    66 0000007F 5D                          pop ebp
+    67 00000080 C21000                      ret 16
+    68                                  ;#########################################
